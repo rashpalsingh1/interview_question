@@ -1,0 +1,448 @@
+---
+title: "Borders Cancer Rates Analysis"
+output:
+  html_document:
+  html_notebook: default
+
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+library(janitor)
+library(babynames)
+library(tidytext)
+```
+
+
+```{r, include=FALSE}
+#load in data and alter variable names
+geo_codes <- read_csv("geography_codes.csv") %>% clean_names()
+
+hb <- read_csv("health_boards.csv") %>%  clean_names()
+
+scotland <- read_csv("scotland_wide.csv") %>%  clean_names()
+
+regions <- read_csv("cancer_network_region.csv") %>% clean_names()
+
+
+```
+
+```{r, include=FALSE}
+ #find and store the value (as char) for NHS borders health board
+hb_code_borders <- geo_codes %>% 
+  filter(hb_name == "NHS Borders") %>% 
+  pull(hb)
+```
+
+
+```{r, include=FALSE}
+#Account the number of cancer cases (male & female) per year
+
+hb_graph <- hb %>% 
+  filter(hb == hb_code_borders) %>% 
+  filter(sex != "All") %>% 
+  group_by(year, sex) %>% 
+  summarise(count = sum(incidences_all_ages))
+```
+
+```{r, echo=FALSE}
+  #plot this as a line graph
+hb_graph %>% 
+  ggplot(aes(x = year, y = count, colour = sex)) +
+  geom_line() +
+  scale_colour_manual(values=c("orange","lightblue")) +
+  geom_point(size=2, shape=21, fill = "white") +
+  labs(
+        y = "Cancer Cases",
+        x = "Year",
+        title = "Cancer Rates",
+        subtitle = "By Gender 1994-2018"
+      ) +
+  theme(plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5)) +
+   scale_x_continuous(breaks = seq(min(hb$year),max(hb$year))) +
+    scale_y_continuous(breaks = seq(0,1500 , by = 100)) +
+  theme(axis.text.x = element_text( angle = 45, hjust = 1 )) +
+  theme(legend.title = element_blank())
+
+
+  
+```
+
+&nbsp;
+
+Clearly the cancer rates have increased between 1994-2018.
+The rate amongst females has increased by 41%, more alarmingly the rate amongst males has increased by 128%
+
+&nbsp;
+
+
+
+
+```{r, include=FALSE}
+#find the 10 busiest cancer centres (1994-2018) split by gender:
+#store the top ten sites for females
+female_count <- hb %>% 
+  filter(hb == hb_code_borders) %>%
+  filter(sex != "All") %>% 
+  filter(cancer_site != "All cancer types") %>%
+  group_by(cancer_site, sex) %>% 
+  summarise(count = sum(incidences_all_ages)) %>% 
+  arrange(desc(count)) %>%
+  filter(sex == "Female") %>% 
+  head(10)
+
+#store the top ten sites for males
+male_count <- hb %>% 
+  filter(hb == hb_code_borders) %>%
+  filter(sex != "All") %>% 
+  filter(cancer_site != "All cancer types") %>%
+  group_by(cancer_site, sex) %>% 
+  summarise(count = sum(incidences_all_ages)) %>% 
+  arrange(desc(count)) %>%
+  filter(sex == "Male") %>% 
+  head(10)
+
+combined_mf <- bind_rows(female_count, male_count)
+
+```
+
+```{r, echo=FALSE}
+  #plot this as a bar graph
+combined_mf %>% 
+  mutate(cancer_site = reorder_within(cancer_site, count, sex)) %>% 
+  ggplot(aes(x = reorder(cancer_site, -count), y = count)) +
+  geom_col(aes(fill = sex), col = "black") +
+  scale_x_reordered() +
+  facet_wrap(~sex, scales = "free_x") +
+   geom_text(aes(label = count),
+            size = 2,
+            position = position_stack(vjust = 0.5),
+            colour = "black") +
+  theme(axis.text.x = element_text( angle = 45, hjust = 1, size = 6.5 )) +
+   scale_fill_manual(values=c("orange","lightblue")) +
+ theme(legend.title = element_blank()) +
+  labs(
+        y = "Cancer Cases",
+        x = "Type",
+        title = "Cancer Rates by Type",
+        subtitle = "Most Frequent Types 
+        Separated by Gender 1994-2018"
+      ) +
+  theme(plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5))
+
+  
+  
+  
+  
+#   ggplot(aes(x = reorder(cancer_site, -count), y = count, 
+#              fill = sex)) +
+#   geom_col(col = "black") +
+#    geom_text(aes(label = count),
+#             size = 2,
+#             position = position_stack(vjust = 0.5),
+#             colour = "black") +
+# theme(axis.text.x = element_text( angle = 45,  hjust = 1, size = 6.5 )) +
+#    scale_fill_manual(values=c("orange","lightblue")) +
+#  theme(legend.title = element_blank()) +
+#   labs(
+#         y = "Cancer Cases",
+#         x = "Type",
+#         title = "Cancer Rates by Type",
+#         subtitle = "Most Frequent Types Separated by Gender 1994-2018"
+#       ) +
+#   theme(plot.title=element_text(hjust = 0.5),
+#         plot.subtitle=element_text(hjust = 0.5))
+# 
+#   
+  
+```
+
+&nbsp;
+
+The above gives the busiest cancer sites across 1994-2018, it attempts to show where resources should be prioritised.  Non-melanoma skin cancer is the most prevalent cancer type in the Borders.
+
+&nbsp;
+
+
+
+```{r, include=FALSE}
+#find the 10 busiest cancer centres for 2018 (latest year of data):
+female_count_2018 <- hb %>% 
+  filter(hb == hb_code_borders) %>%
+  filter(sex != "All") %>% 
+    filter(cancer_site != "All cancer types") %>%
+   filter(year == max(year)) %>% 
+  group_by(cancer_site, sex) %>% 
+  summarise(count = sum(incidences_all_ages)) %>% 
+  arrange(desc(count)) %>%
+  filter(sex == "Female") %>% 
+  head(10)
+
+(male_count_2018 <- hb %>% 
+  filter(hb == hb_code_borders) %>%
+  filter(sex != "All") %>%
+  filter(cancer_site != "All cancer types") %>%
+  filter(year == max(year)) %>% 
+  group_by(cancer_site, sex) %>% 
+  summarise(count = sum(incidences_all_ages)) %>% 
+  arrange(desc(count)) %>%
+  filter(sex == "Male") %>% 
+  head(10))
+
+combined_mf_2018 <- bind_rows(female_count_2018, 
+                              male_count_2018)
+
+
+
+```
+
+```{r, echo=FALSE}
+  #plot this as a bar graph
+combined_mf_2018 %>% 
+    mutate(cancer_site = reorder_within
+           (cancer_site, count, sex)) %>% 
+  ggplot(aes(x = reorder(cancer_site, -count), y = count)) +
+  geom_col(aes(fill = sex), col = "black") +
+  scale_x_reordered() +
+  facet_wrap(~sex, scales = "free_x") +
+     geom_text(aes(label = count),
+            size = 2,
+            position = position_stack(vjust = 0.5),
+            colour = "black") +
+  theme(axis.text.x = element_text( angle = 45, 
+                                    hjust = 1,  size = 6.5 )) +
+    scale_fill_manual(values=c("orange","lightblue")) +
+ theme(legend.title = element_blank()) +
+  labs(
+        y = "Cancer Cases",
+        x = " Type",
+        title = "Cancer Rates by Type",
+        subtitle = "Most Frequent Types Separated by Gender 2018"
+      ) +
+  theme(plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5))
+
+
+  
+#   ggplot(aes(x = reorder(cancer_site, -count), y = count, 
+#              fill = sex)) +
+#   geom_col(col = "black") +
+#    geom_text(aes(label = count),
+#             size = 2,
+#             position = position_stack(vjust = 0.5),
+#             colour = "black") +
+# theme(axis.text.x = element_text( angle = 45,  hjust = 1, size = 6.5)) +
+#    scale_fill_manual(values=c("orange","lightblue")) +
+#  theme(legend.title = element_blank()) +
+#   labs(
+#         y = "Cancer Cases",
+#         x = " Type",
+#         title = "Cancer Rates by Type",
+#         subtitle = "Most Frequent Types Separated by Gender 2018"
+#       ) +
+#   theme(plot.title=element_text(hjust = 0.5),
+#         plot.subtitle=element_text(hjust = 0.5))
+
+```
+
+&nbsp;
+
+The above gives the busiest cancer sites in 2018, it may be a better indication as to the current needs for cancer patients.  Again non-melanoma skin cancer was the most prevalent cancer type in the Borders in 2018.
+
+&nbsp;
+
+
+
+
+```{r, include=FALSE}
+#find the number of cases at each cancer site in the Borders
+hb_borders_agg_type <- hb %>% 
+  filter(hb == hb_code_borders) %>%
+  filter(sex == "All") %>% 
+  group_by(cancer_site) %>% 
+  summarise(count = sum(incidences_all_ages))
+
+#find the number of cases  each year in the Borders
+hb_borders_agg_year <- hb %>% 
+  filter(hb == hb_code_borders) %>%
+  filter(sex == "All") %>% 
+  group_by(year) %>% 
+  summarise(count = sum(incidences_all_ages))
+
+```
+
+```{r, include=FALSE}
+#find the number of cases at each cancer site in Scotland
+scotland_agg_type <- scotland %>% 
+  filter(sex == "All") %>% 
+  group_by(cancer_site) %>% 
+  summarise(count = sum(incidences_all_ages))
+
+#find the number of cases at each year in Scotland
+scotland_agg_year <- scotland %>% 
+  filter(sex == "All") %>% 
+  group_by(year) %>% 
+  summarise(count = sum(incidences_all_ages))
+```
+
+```{r, include=FALSE}
+
+
+# combine the count per year data for the Borders and Scotland
+years_combined <- inner_join(hb_borders_agg_year, scotland_agg_year, by = "year")
+
+
+years_combined <- years_combined %>% 
+  #rename default named columns
+  rename(borders = count.x) %>% 
+  rename(scotland_wide = count.y) %>% 
+  #calculate total cases
+  mutate(total_cases = borders + scotland_wide)
+
+
+#make the data tidy to allow easier plotting: create a single column for location and place cancer case numbers in an appropriately named column 
+years_combined <- years_combined %>% 
+  pivot_longer(
+    cols = borders:scotland_wide,
+    names_to = "location",
+    values_to = "cancer_cases"
+  )
+
+#find the case number as a percentage of the total cases
+years_combined <- years_combined %>% 
+  mutate(percentage_cases =
+  round(((cancer_cases/total_cases)*100), digits = 2))
+
+
+  
+```
+
+```{r, echo=FALSE}
+#plot the cancer rates in the Borders compared to those Scotland wide
+  years_combined %>% 
+  ggplot(aes(x = year, y = cancer_cases, fill = location)) +
+  geom_col(col = "black", width = 1) +
+  geom_text(aes(label = paste(percentage_cases,"%")),
+            size = 2.5,
+            position = position_stack(vjust = 0.5),
+            hjust = -0.5,
+            colour = "black", angle = 90)  +
+  ylim(0, max(years_combined$cancer_cases) * 1.2) +
+    labs(
+        y = "Cancer Cases",
+        x = "Year",
+        title = "Cancer Rates by Location",
+        subtitle = "Presented as a proportion 1994-2018"
+      ) +
+  scale_fill_manual(values=c("orange","lightblue")) +
+  theme(plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5)) +
+   scale_x_continuous(breaks = seq(min(years_combined$year),max(years_combined$year))) +
+    #scale_y_continuous(breaks = seq(0,100000 , by = 10000)) +
+  theme(axis.text.x = element_text( angle = 45, hjust = 1 )) +
+  theme(legend.title = element_blank())
+
+
+```
+
+&nbsp;
+
+The proportion of cancer cases between 1994-2018 in the Borders has remained between 2.05-2.61 percent 
+
+&nbsp;
+
+
+
+```{r, include=FALSE}
+#find the number of cases at each cancer site in the region "South East of Scotland"
+regions_agg_type <- regions %>% 
+  filter(region == "South East of Scotland") %>%
+  filter(sex == "All") %>% 
+  group_by(cancer_site) %>% 
+  summarise(count = sum(incidences_all_ages))
+
+
+#find the number of cases  each year in the region "South East of Scotland"
+regions_agg_year <- regions %>% 
+  filter(region == "South East of Scotland") %>%
+  filter(sex == "All") %>% 
+  group_by(year) %>% 
+  summarise(count = sum(incidences_all_ages))
+
+
+```
+
+```{r, include=FALSE}
+# combine the count per year data for the Borders and the region in which it belongs
+years_combined_region <- inner_join(hb_borders_agg_year, 
+                                    regions_agg_year, by = "year")
+
+
+years_combined_region <- years_combined_region %>% 
+  #rename default named columns
+  rename(borders = count.x) %>% 
+  rename(south_scotland = count.y) %>% 
+  #calculate total cases
+  mutate(total_cases = borders + south_scotland)
+
+#make the data tidy to allow easier plotting: create a single column for location and place cancer case numbers in an appropriately named column 
+years_combined_region <- years_combined_region %>% 
+  pivot_longer(
+    cols = borders:south_scotland,
+    names_to = "location",
+    values_to = "cancer_cases"
+  )
+
+
+#find the case number as a percentage of the total cases
+years_combined_region <- years_combined_region %>% 
+  mutate(percentage_cases =
+  round(((cancer_cases/total_cases)*100), digits = 2))
+
+
+```
+
+```{r, echo=FALSE}
+#plot the cancer rates in the Borders compared to those in the south of Scotland 
+  years_combined_region %>% 
+  ggplot(aes(x = year, y = cancer_cases, fill = location)) +
+  geom_col(col = "black", width = 1) +
+  geom_text(aes(label = paste(percentage_cases,"%")),
+            size = 2.5,
+            position = position_stack(vjust = 0.5),
+            hjust = -0.5,
+            colour = "black", angle = 90)  +
+  ylim(0, max(years_combined_region$cancer_cases) * 1.2) +
+    labs(
+        y = "Cancer Cases",
+        x = "Year",
+        title = "Cancer Rates by Location (Region - S.E. Scotland)",
+        subtitle = "Presented as a proportion 1994-2018"
+      ) +
+  scale_fill_manual(values=c("orange","lightblue")) +
+  theme(plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5)) +
+   scale_x_continuous(breaks = seq(min(years_combined$year),max(years_combined$year))) +
+    #scale_y_continuous(breaks = seq(0,100000 , by = 10000)) +
+  theme(axis.text.x = element_text( angle = 45, hjust = 1 )) +
+  theme(legend.title = element_blank())
+```
+
+&nbsp;
+
+The proportion of cancer cases between 1994-2018 in the Borders compared to those in the region South East Scotland has remained between 7.14-8.94 percent 
+
+
+
+```{r}
+# combined_mf %>%
+#   mutate(cancer_site = reorder_within(cancer_site, count, sex)) %>% 
+#   ggplot(aes(x = reorder(cancer_site, -count), y = count)) +
+#   geom_col() +
+#   scale_x_reordered() +
+#   facet_wrap(~sex, scales = "free_x") +
+#   theme(axis.text.x = element_text( angle = 45, hjust = 1 ))
+```
+
